@@ -17,8 +17,9 @@ def create_app(test_config: dict | None = None) -> Flask:
         SQLALCHEMY_TRACK_MODIFICATIONS=False,
         VSCODE_PORT_MIN=int(os.environ.get("VSCODE_PORT_MIN", "9000")),
         VSCODE_PORT_MAX=int(os.environ.get("VSCODE_PORT_MAX", "9100")),
-        VSCODE_PUBLIC_HOST=os.environ.get("VSCODE_PUBLIC_HOST", "localhost"),
-        VSCODE_PUBLIC_SCHEME=os.environ.get("VSCODE_PUBLIC_SCHEME", "http"),
+        # Empty / unset = derive Host and scheme from each request (behind OpenResty).
+        VSCODE_PUBLIC_HOST=(os.environ.get("VSCODE_PUBLIC_HOST") or None),
+        VSCODE_PUBLIC_SCHEME=(os.environ.get("VSCODE_PUBLIC_SCHEME") or None),
         EV_REPO_GIT_URL=os.environ.get(
             "EV_REPO_GIT_URL",
             "https://github.com/DmitrySlesarev/az1m0v.git",

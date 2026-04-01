@@ -1,10 +1,8 @@
 from flask import (
     Blueprint,
     flash,
-    redirect,
     render_template,
     request,
-    url_for,
 )
 from sqlalchemy.exc import IntegrityError
 
@@ -19,6 +17,26 @@ from app.models import User
 from app.vscode_manager import ensure_vscode_for_user
 
 bp = Blueprint("main", __name__)
+
+
+def _resolve_public_host() -> str:
+    from flask import current_app
+
+    cfg = current_app.config
+    h = cfg.get("VSCODE_PUBLIC_HOST")
+    if h:
+        return str(h)
+    return request.headers.get("X-Forwarded-Host") or request.host.split(":")[0]
+
+
+def _resolve_public_scheme() -> str:
+    from flask import current_app
+
+    cfg = current_app.config
+    s = cfg.get("VSCODE_PUBLIC_SCHEME")
+    if s:
+        return str(s)
+    return request.headers.get("X-Forwarded-Proto") or request.scheme
 
 
 @bp.route("/")
@@ -63,23 +81,39 @@ def register():
 
     from flask import current_app
 
-    port, err = ensure_vscode_for_user(user, dict(current_app.config))
+    port, err, ide_password = ensure_vscode_for_user(user, dict(current_app.config))
     try:
         db.session.commit()
     except Exception:
         db.session.rollback()
         raise
 
-    if err:
-        flash(
-            f"Account created. VS Code sandbox could not start automatically: {err}. "
-            f"Your assigned port is {port}.",
-            "warning",
-        )
-    host = current_app.config["VSCODE_PUBLIC_HOST"]
-    scheme = current_app.config["VSCODE_PUBLIC_SCHEME"]
+    host = _resolve_public_host()
+    scheme = _resolve_public_scheme()
     vscode_url = f"{scheme}://{host}:{port}/"
-    return redirect(vscode_url)
+
+    if err and ide_password is None:
+        flash(f"Account created, but the IDE could not be started: {err}", "error")
+        return (
+            render_template(
+                "ide_launch.html",
+                vscode_url=vscode_url,
+                ide_password=None,
+                warn=None,
+                error_detail=err,
+            ),
+            500,
+        )
+
+    warn = err if err else None
+
+    return render_template(
+        "ide_launch.html",
+        vscode_url=vscode_url,
+        ide_password=ide_password,
+        warn=warn,
+        error_detail=None,
+    )
 
 
 @bp.route("/health")

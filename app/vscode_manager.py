@@ -6,6 +6,9 @@ import logging
 import os
 import secrets
 import string
+import time
+import urllib.error
+import urllib.request
 from typing import TYPE_CHECKING
 
 from app.extensions import db
@@ -15,6 +18,9 @@ if TYPE_CHECKING:
     pass
 
 log = logging.getLogger(__name__)
+
+# Host that resolves to the Docker host from inside another container (see docker-compose extra_hosts).
+_HOST_GATEWAY = os.environ.get("HOST_GATEWAY", "host.docker.internal")
 
 
 def _client():
@@ -39,9 +45,35 @@ def next_free_port(app_config: dict) -> int:
     raise RuntimeError("No free VS Code ports in configured range")
 
 
-def ensure_vscode_for_user(user: User, app_config: dict) -> tuple[int, str | None]:
+def _host_reachable_http(url: str, timeout: float = 3.0) -> bool:
+    """True if something responds on the URL (IDE up or redirect to login)."""
+    try:
+        urllib.request.urlopen(url, timeout=timeout)
+        return True
+    except urllib.error.HTTPError as e:
+        return e.code in (200, 301, 302, 303, 307, 308, 401, 403)
+    except urllib.error.URLError:
+        return False
+
+
+def wait_for_ide_on_host(port: int, timeout_sec: float = 60.0) -> bool:
     """
-    Returns (host_port, error_message).
+    Poll the published host port via HOST_GATEWAY (from inside the web container).
+    Required because the browser is redirected before git clone + code-server finish.
+    """
+    url = f"http://{_HOST_GATEWAY}:{port}/"
+    deadline = time.monotonic() + timeout_sec
+    while time.monotonic() < deadline:
+        if _host_reachable_http(url, timeout=2.0):
+            return True
+        time.sleep(0.75)
+    return False
+
+
+def ensure_vscode_for_user(user: User, app_config: dict) -> tuple[int, str | None, str | None]:
+    """
+    Returns (host_port, error_message, ide_password).
+    ide_password is the code-server login password when spawn succeeds (otherwise None).
     When ENABLE_VSCODE_SPAWN is false, only assigns port without starting Docker.
     """
     port = next_free_port(app_config)
@@ -50,7 +82,7 @@ def ensure_vscode_for_user(user: User, app_config: dict) -> tuple[int, str | Non
     if not app_config.get("ENABLE_VSCODE_SPAWN", True):
         user.vscode_port = port
         user.vscode_container_name = None
-        return port, None
+        return port, None, None
 
     name = _container_name(user.id)
     password = "".join(secrets.choice(string.ascii_letters + string.digits) for _ in range(24))
@@ -59,7 +91,7 @@ def ensure_vscode_for_user(user: User, app_config: dict) -> tuple[int, str | Non
         client = _client()
     except Exception as e:  # pragma: no cover - environment specific
         log.exception("Docker client failed")
-        return port, f"Docker unavailable: {e}"
+        return port, f"Docker unavailable: {e}", None
 
     try:
         old = client.containers.get(name)
@@ -70,10 +102,10 @@ def ensure_vscode_for_user(user: User, app_config: dict) -> tuple[int, str | Non
 
     shell_cmd = (
         f"rm -rf /tmp/az1m0v && git clone --depth 1 {git_url!s} /tmp/az1m0v "
-        "&& exec code-server --bind-addr 0.0.0.0:8080 --auth password /tmp/az1m0v"
+        "&& exec /usr/bin/code-server --bind-addr 0.0.0.0:8080 --auth password /tmp/az1m0v"
     )
     try:
-        client.containers.run(
+        container = client.containers.run(
             os.environ.get("CODE_SERVER_IMAGE", "codercom/code-server:latest"),
             name=name,
             detach=True,
@@ -85,8 +117,24 @@ def ensure_vscode_for_user(user: User, app_config: dict) -> tuple[int, str | Non
         )
     except Exception as e:
         log.exception("code-server start failed")
-        return port, str(e)
+        return port, str(e), None
+
+    container.reload()
+    if container.status != "running":
+        logs = container.logs(tail=80).decode("utf-8", errors="replace")
+        log.error("code-server container not running: %s", logs)
+        return port, f"Container exited: {logs[-2000:]}", None
 
     user.vscode_port = port
     user.vscode_container_name = name
-    return port, None
+
+    if not wait_for_ide_on_host(port):
+        logs = container.logs(tail=80).decode("utf-8", errors="replace")
+        log.warning("code-server slow on port %s: %s", port, logs[-500:])
+        return (
+            port,
+            "The IDE is still starting; wait a few seconds and open the link below (or refresh).",
+            password,
+        )
+
+    return port, None, password

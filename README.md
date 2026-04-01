@@ -7,7 +7,7 @@ Public web front for **https://www.az1m0v.com**: a Flask application in Docker, 
 | Traffic | Behaviour |
 |--------|------------|
 | `http://host/` (port **80**) | OpenResty proxies to Gunicorn/Flask: landing page (crowdfunding-style copy summarising the az1m0v EV platform) and `/register`. |
-| After sign-up | Browser **HTTP redirect** to `{VSCODE_PUBLIC_SCHEME}://{VSCODE_PUBLIC_HOST}:{port}/` — the user’s personal code-server on a **published host port** in `[VSCODE_PORT_MIN, VSCODE_PORT_MAX]`. |
+| After sign-up | A **confirmation page** on this site shows the IDE URL, the **one-time code-server password**, and a button to open VS Code in the browser. The server waits until the new container answers on the host port (via `host.docker.internal` from the `web` container) so you are not sent to a dead page while `git clone` runs. |
 | Host port **`WEB_HOST_PORT`** (default **5001**) | Direct access to the Flask app for debugging; maps to container port 5000. Default is not 5000 so it does not collide with other stacks (e.g. az1m0v dashboard) using 5000. Set `WEB_HOST_PORT=5000` in `.env` if that port is free. |
 
 The `web` container mounts **`/var/run/docker.sock`** so it can start sibling `codercom/code-server` containers that publish ports on the **host** (Docker maps `hostPort:8080` inside the IDE container).
@@ -33,7 +33,7 @@ docker compose up --build -d
 - Flask directly: **http://localhost:5001/** (or `${WEB_HOST_PORT}` if you set it)  
 - Health check: **http://localhost/health** (JSON `{"status":"ok"}`)
 
-Register at **http://localhost/register**. You are redirected to **http://localhost:9000/** (first free port in range) with a random code-server password set in the container environment (see logs: `docker logs az1m0v-codeserver-<id>`).
+Register at **http://localhost/register**. You get a page with **Open VS Code in the browser** (first free port in range, often **9000**) and the **login password** for code-server. If anything fails, check `docker logs az1m0v-codeserver-<user_id>`.
 
 ### Environment variables
 
@@ -41,8 +41,9 @@ See `.env.example`. Important:
 
 | Variable | Purpose |
 |----------|---------|
-| `VSCODE_PUBLIC_HOST` | Hostname used in the redirect URL (e.g. `www.az1m0v.com`). |
-| `VSCODE_PUBLIC_SCHEME` | `http` or `https` for that redirect. |
+| `VSCODE_PUBLIC_HOST` | Optional. If unset, the IDE link uses the same **Host** / `X-Forwarded-Host` as the browser (recommended behind OpenResty). Set for fixed production URLs (e.g. `www.az1m0v.com`). |
+| `VSCODE_PUBLIC_SCHEME` | Optional. If unset, uses `X-Forwarded-Proto` or the request scheme. |
+| `HOST_GATEWAY` | Hostname the `web` container uses to reach **host-published** IDE ports (default `host.docker.internal`, wired in Compose via `extra_hosts`). |
 | `VSCODE_PORT_MIN` / `VSCODE_PORT_MAX` | Inclusive range of **host** ports for code-server; must be open in the firewall. |
 | `EV_REPO_GIT_URL` | Default `https://github.com/DmitrySlesarev/az1m0v.git` (public clone). |
 | `ENABLE_VSCODE_SPAWN` | Set `0` to disable Docker API and only assign ports in DB (e.g. tests). |

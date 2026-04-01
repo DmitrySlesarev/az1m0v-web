@@ -15,11 +15,16 @@ services:
 
   web:
     build: .
+    # So the web app can health-check host-published IDE ports from inside the container.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       DATABASE_URL: postgresql://az1m0v:${POSTGRES_PASSWORD:-az1m0v_dev}@db:5432/az1m0v_web
       SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
-      VSCODE_PUBLIC_HOST: ${VSCODE_PUBLIC_HOST:-localhost}
-      VSCODE_PUBLIC_SCHEME: ${VSCODE_PUBLIC_SCHEME:-http}
+      # Optional. Leave unset to use the browser Host / X-Forwarded-* (recommended behind OpenResty).
+      VSCODE_PUBLIC_HOST: ${VSCODE_PUBLIC_HOST:-}
+      VSCODE_PUBLIC_SCHEME: ${VSCODE_PUBLIC_SCHEME:-}
+      HOST_GATEWAY: ${HOST_GATEWAY:-host.docker.internal}
       VSCODE_PORT_MIN: ${VSCODE_PORT_MIN:-9000}
       VSCODE_PORT_MAX: ${VSCODE_PORT_MAX:-9100}
       EV_REPO_GIT_URL: ${EV_REPO_GIT_URL:-https://github.com/DmitrySlesarev/az1m0v.git}

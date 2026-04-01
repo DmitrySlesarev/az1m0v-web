@@ -14,6 +14,7 @@ def app():
             "ENABLE_VSCODE_SPAWN": False,
             "VSCODE_PUBLIC_HOST": "localhost",
             "VSCODE_PUBLIC_SCHEME": "http",
+            # Explicit for tests; leave unset in production compose to use request Host.
             "VSCODE_PORT_MIN": 9000,
             "VSCODE_PORT_MAX": 9100,
         }

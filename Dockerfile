@@ -15,4 +15,5 @@ COPY app ./app
 ENV PYTHONUNBUFFERED=1
 EXPOSE 5000
 
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "2", "wsgi:application"]
+# Long timeout: registration waits for git clone + code-server to accept HTTP on the host port.
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "2", "--timeout", "120", "--graceful-timeout", "30", "wsgi:application"]

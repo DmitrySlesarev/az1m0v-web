@@ -20,19 +20,20 @@ def test_register_get(client):
     assert b"Register" in r.data or b"sandbox" in r.data.lower()
 
 
-def test_register_redirect_assigns_port(client, app):
+def test_register_shows_ide_page_and_port(client, app):
     r = client.post(
         "/register",
         data={"email": "new@example.com", "password": "hunter22"},
         follow_redirects=False,
     )
-    assert r.status_code == 302
-    assert "Location" in r.headers
-    assert r.headers["Location"].startswith("http://localhost:")
+    assert r.status_code == 200
+    assert b"Open VS Code" in r.data or b"browser workspace" in r.data.lower()
     with app.app_context():
         u = User.query.filter_by(email="new@example.com").one()
         assert u.vscode_port is not None
         assert 9000 <= u.vscode_port <= 9100
+        url_snippet = f"http://localhost:{u.vscode_port}/".encode()
+        assert url_snippet in r.data
 
 
 def test_register_duplicate_email(client):

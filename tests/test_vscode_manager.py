@@ -26,7 +26,8 @@ def test_ensure_without_spawn_sets_port(app):
         u.set_password("password12")
         db.session.add(u)
         db.session.commit()
-        port, err = ensure_vscode_for_user(u, dict(app.config))
+        port, err, ide_pw = ensure_vscode_for_user(u, dict(app.config))
         assert err is None
+        assert ide_pw is None
         assert u.vscode_port == port
         assert 9000 <= port <= 9100
