@@ -8,7 +8,7 @@ Public web front for **https://www.az1m0v.com**: a Flask application in Docker, 
 |--------|------------|
 | `http://host/` (port **80**) | OpenResty proxies to Gunicorn/Flask: landing page (crowdfunding-style copy summarising the az1m0v EV platform) and `/register`. |
 | After sign-up | Browser **HTTP redirect** to `{VSCODE_PUBLIC_SCHEME}://{VSCODE_PUBLIC_HOST}:{port}/` — the user’s personal code-server on a **published host port** in `[VSCODE_PORT_MIN, VSCODE_PORT_MAX]`. |
-| Port **5000** | Direct access to the Flask app (useful for debugging); in `docker-compose.yml` the `web` service publishes `5000:5000`. |
+| Host port **`WEB_HOST_PORT`** (default **5001**) | Direct access to the Flask app for debugging; maps to container port 5000. Default is not 5000 so it does not collide with other stacks (e.g. az1m0v dashboard) using 5000. Set `WEB_HOST_PORT=5000` in `.env` if that port is free. |
 
 The `web` container mounts **`/var/run/docker.sock`** so it can start sibling `codercom/code-server` containers that publish ports on the **host** (Docker maps `hostPort:8080` inside the IDE container).
 
@@ -30,7 +30,7 @@ docker compose up --build -d
 ```
 
 - Main site (via OpenResty): **http://localhost/**  
-- Flask directly: **http://localhost:5000/**  
+- Flask directly: **http://localhost:5001/** (or `${WEB_HOST_PORT}` if you set it)  
 - Health check: **http://localhost/health** (JSON `{"status":"ok"}`)
 
 Register at **http://localhost/register**. You are redirected to **http://localhost:9000/** (first free port in range) with a random code-server password set in the container environment (see logs: `docker logs az1m0v-codeserver-<id>`).

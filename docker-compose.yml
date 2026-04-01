@@ -29,8 +29,10 @@ services:
         condition: service_healthy
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+    # Host port defaults to 5001 so this stack does not fight with other apps on 5000 (e.g. az1m0v dashboard).
+    # Override: WEB_HOST_PORT=5000 in .env
     ports:
-      - "5000:5000"
+      - "${WEB_HOST_PORT:-5001}:5000"
 
   openresty:
     image: openresty/openresty:alpine
