@@ -52,7 +52,10 @@ def _host_reachable_http(url: str, timeout: float = 3.0) -> bool:
         return True
     except urllib.error.HTTPError as e:
         return e.code in (200, 301, 302, 303, 307, 308, 401, 403)
-    except urllib.error.URLError:
+    except (urllib.error.URLError, TimeoutError, OSError):
+        return False
+    except Exception:  # pragma: no cover - urllib edge cases
+        log.debug("ide probe failed for %s", url, exc_info=True)
         return False
 
 
@@ -62,12 +65,16 @@ def wait_for_ide_on_host(port: int, timeout_sec: float = 60.0) -> bool:
     Required because the browser is redirected before git clone + code-server finish.
     """
     url = f"http://{_HOST_GATEWAY}:{port}/"
-    deadline = time.monotonic() + timeout_sec
-    while time.monotonic() < deadline:
-        if _host_reachable_http(url, timeout=2.0):
-            return True
-        time.sleep(0.75)
-    return False
+    try:
+        deadline = time.monotonic() + timeout_sec
+        while time.monotonic() < deadline:
+            if _host_reachable_http(url, timeout=2.0):
+                return True
+            time.sleep(0.75)
+        return False
+    except Exception:
+        log.exception("wait_for_ide_on_host failed for %s", url)
+        return False
 
 
 def ensure_vscode_for_user(user: User, app_config: dict) -> tuple[int, str | None, str | None]:
@@ -119,9 +126,17 @@ def ensure_vscode_for_user(user: User, app_config: dict) -> tuple[int, str | Non
         log.exception("code-server start failed")
         return port, str(e), None
 
-    container.reload()
+    try:
+        container.reload()
+    except Exception as e:
+        log.exception("code-server reload failed")
+        return port, f"Docker API error after start: {e}", None
+
     if container.status != "running":
-        logs = container.logs(tail=80).decode("utf-8", errors="replace")
+        try:
+            logs = container.logs(tail=80).decode("utf-8", errors="replace")
+        except Exception as e:
+            logs = f"(could not read logs: {e})"
         log.error("code-server container not running: %s", logs)
         return port, f"Container exited: {logs[-2000:]}", None
 
@@ -129,7 +144,10 @@ def ensure_vscode_for_user(user: User, app_config: dict) -> tuple[int, str | Non
     user.vscode_container_name = name
 
     if not wait_for_ide_on_host(port):
-        logs = container.logs(tail=80).decode("utf-8", errors="replace")
+        try:
+            logs = container.logs(tail=80).decode("utf-8", errors="replace")
+        except Exception as e:
+            logs = str(e)
         log.warning("code-server slow on port %s: %s", port, logs[-500:])
         return (
             port,

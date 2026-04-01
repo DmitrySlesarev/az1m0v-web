@@ -5,13 +5,13 @@
   <h1>Your browser workspace is ready</h1>
   {% if error_detail %}
     <p class="prose flash flash-error">We could not start code-server automatically. Assigned port for this account: <strong>{{ vscode_url }}</strong></p>
-    <p class="prose muted">{{ error_detail }}</p>
+    <p class="prose muted">{{ error_detail | e }}</p>
   {% else %}
     <p class="prose">Open the link below. code-server may take a few seconds on first start while the repository is cloned.</p>
   {% endif %}
 
   {% if warn %}
-    <p class="flash flash-warning">{{ warn }}</p>
+    <p class="flash flash-warning">{{ warn | e }}</p>
   {% endif %}
 
   {% if ide_password %}

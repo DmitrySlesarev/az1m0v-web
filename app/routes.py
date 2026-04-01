@@ -81,7 +81,16 @@ def register():
 
     from flask import current_app
 
-    port, err, ide_password = ensure_vscode_for_user(user, dict(current_app.config))
+    # Fresh ORM instance after commit (avoids expired/detached user when spawn touches the DB).
+    user = User.query.filter_by(email=email).one()
+
+    try:
+        port, err, ide_password = ensure_vscode_for_user(user, dict(current_app.config))
+    except Exception as e:
+        current_app.logger.exception("ensure_vscode_for_user")
+        port = current_app.config["VSCODE_PORT_MIN"]
+        err, ide_password = str(e), None
+
     try:
         db.session.commit()
     except Exception:
@@ -94,15 +103,12 @@ def register():
 
     if err and ide_password is None:
         flash(f"Account created, but the IDE could not be started: {err}", "error")
-        return (
-            render_template(
-                "ide_launch.html",
-                vscode_url=vscode_url,
-                ide_password=None,
-                warn=None,
-                error_detail=err,
-            ),
-            500,
+        return render_template(
+            "ide_launch.html",
+            vscode_url=vscode_url,
+            ide_password=None,
+            warn=None,
+            error_detail=err,
         )
 
     warn = err if err else None
