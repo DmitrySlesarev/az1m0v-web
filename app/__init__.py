@@ -1,4 +1,5 @@
 import os
+from datetime import timedelta
 
 from flask import Flask
 
@@ -34,6 +35,10 @@ def create_app(test_config: dict | None = None) -> Flask:
         ENABLE_VSCODE_SPAWN=os.environ.get("ENABLE_VSCODE_SPAWN", "1") == "1",
         CROWDFUNDING_GOAL_USD=_env_int("CROWDFUNDING_GOAL_USD", 250000),
         CROWDFUNDING_RAISED_USD=_env_int("CROWDFUNDING_RAISED_USD", 42000),
+        PERMANENT_SESSION_LIFETIME=timedelta(days=14),
+        SESSION_COOKIE_HTTPONLY=True,
+        SESSION_COOKIE_SAMESITE="Lax",
+        SESSION_COOKIE_SECURE=os.environ.get("SESSION_COOKIE_SECURE", "0") == "1",
     )
     if test_config:
         app.config.update(test_config)

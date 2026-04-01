@@ -6,13 +6,22 @@ Public web front for **https://www.az1m0v.com**: a Flask application in Docker, 
 
 | Traffic | Behaviour |
 |--------|------------|
-| `http://host/` (port **80**) | OpenResty proxies to Gunicorn/Flask: landing page (crowdfunding-style copy summarising the az1m0v EV platform) and `/register`. |
+| `http://host/` (port **80**) | OpenResty proxies to Gunicorn/Flask: landing page, **`/login`**, **`/register`**, **`/workspace`** (session required). |
 | After sign-up | A **confirmation page** on this site shows the IDE URL, the **one-time code-server password**, and a button to open VS Code in the browser. The server waits until the new container answers on the host port (via `host.docker.internal` from the `web` container) so you are not sent to a dead page while `git clone` runs. |
 | Host port **`WEB_HOST_PORT`** (default **5001**) | Direct access to the Flask app for debugging; maps to container port 5000. Default is not 5000 so it does not collide with other stacks (e.g. az1m0v dashboard) using 5000. Set `WEB_HOST_PORT=5000` in `.env` if that port is free. |
 
 The `web` container mounts **`/var/run/docker.sock`** so it can start sibling `codercom/code-server` containers that publish ports on the **host** (Docker maps `hostPort:8080` inside the IDE container). **Port selection** merges PostgreSQL with **live Docker bindings** in your configured range, and retries if the daemon reports “port is already allocated”, so a leftover IDE container does not steal the same numeric port from the next signup.
 
 Data stored in PostgreSQL: user email, password hash, assigned `vscode_port`, optional `vscode_container_name`.
+
+### Accounts (login)
+
+- **Register** (`/register`) creates the user and opens a **signed cookie session** (`user_id`), same as after a normal login.
+- **Log in** (`/login`) uses email + password (hashed with Werkzeug). After success you are sent to **`/workspace`** (or a safe relative `?next=` path only — open redirects are blocked).
+- **Workspace** (`/workspace`) shows your browser IDE URL for your assigned host port. The **code-server password** is only shown once on the post-registration page; we do not store it in the database.
+- **Log out** — `POST /logout` (header button). Session lifetime defaults to **14 days** for “remember me” style persistence (`session.permanent`).
+
+For HTTPS deployments, set **`SESSION_COOKIE_SECURE=1`** in the environment so browsers only send the session cookie over TLS.
 
 ## Prerequisites
 
@@ -47,6 +56,7 @@ See `.env.example`. Important:
 | `VSCODE_PORT_MIN` / `VSCODE_PORT_MAX` | Inclusive range of **host** ports for code-server; must be open in the firewall. |
 | `EV_REPO_GIT_URL` | Default `https://github.com/DmitrySlesarev/az1m0v.git` (public clone). |
 | `ENABLE_VSCODE_SPAWN` | Set `0` to disable Docker API and only assign ports in DB (e.g. tests). |
+| `SESSION_COOKIE_SECURE` | Set to `1` when the site is HTTPS-only so the session cookie is not sent over plain HTTP. |
 
 **SSH URL (`git@github.com:...`)**: the stock image clones over HTTPS. To use SSH, provide a custom image or extend `codercom/code-server` with a deploy key and change the clone command in `app/vscode_manager.py`, or mount `~/.ssh` (not recommended for production without hardening).
 
@@ -90,7 +100,7 @@ Tests use SQLite in-memory, `ENABLE_VSCODE_SPAWN=0`, and do not require Docker.
 
 ```
 az1m0v-web/
-├── app/                 # Flask app (templates, static, routes, models)
+├── app/                 # Flask app (routes, models, auth helpers, templates, static)
 ├── openresty/nginx.conf # Reverse proxy for port 80 → web:5000
 ├── docker-compose.yml
 ├── Dockerfile

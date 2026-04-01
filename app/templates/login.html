@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Log in — az1m0v{% endblock %}
+{% block content %}
+<section class="narrow">
+  <h1>Log in</h1>
+  <p class="prose muted">Sign in to open your browser workspace link. We never store your password in plain text.</p>
+  <form method="post" class="form" action="{{ url_for('main.login') }}">
+    {% set next_param = request.form.get('next') or request.args.get('next') %}
+    {% if next_param %}
+      <input type="hidden" name="next" value="{{ next_param | e }}">
+    {% endif %}
+    <label for="email">Email</label>
+    <input id="email" name="email" type="email" required autocomplete="email" placeholder="you@example.com">
+    <label for="password">Password</label>
+    <input id="password" name="password" type="password" required autocomplete="current-password" placeholder="Your password">
+    <button class="btn btn-primary btn-block" type="submit">Log in</button>
+  </form>
+  <p class="fine-print">New here? <a href="{{ url_for('main.register') }}">Create an account</a> to get a sandbox.</p>
+</section>
+{% endblock %}

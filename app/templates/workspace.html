@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Workspace — az1m0v{% endblock %}
+{% block content %}
+<section class="narrow ide-launch">
+  <h1>Your workspace</h1>
+  <p class="prose muted">Signed in as <strong>{{ email | e }}</strong></p>
+
+  {% if no_port %}
+    <p class="flash flash-warning">No IDE port is assigned to this account yet (sandbox creation may have failed). Try registering again with a different email or contact support.</p>
+  {% else %}
+    <p class="prose">Open your personal VS Code in the browser. The code-server password was shown once at signup; we do not store it. If you lost it, check the host with <code>docker logs az1m0v-codeserver-&lt;id&gt;</code> or recreate the account.</p>
+    <p class="cta-row">
+      <a class="btn btn-primary btn-block" href="{{ vscode_url }}" target="_blank" rel="noopener">Open VS Code in the browser</a>
+    </p>
+    <p class="fine-print">URL: <code>{{ vscode_url | e }}</code></p>
+  {% endif %}
+
+  <form method="post" action="{{ url_for('main.logout') }}" class="inline-logout">
+    <button type="submit" class="btn btn-ghost">Log out</button>
+  </form>
+</section>
+{% endblock %}

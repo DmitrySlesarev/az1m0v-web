@@ -1,11 +1,15 @@
 from flask import (
     Blueprint,
     flash,
+    redirect,
     render_template,
     request,
+    session,
+    url_for,
 )
 from sqlalchemy.exc import IntegrityError
 
+from app.auth import login_required, safe_next_url
 from app.ev_content import (
     EV_CROWDFUNDING_PITCH,
     EV_HIGHLIGHTS,
@@ -39,6 +43,12 @@ def _resolve_public_scheme() -> str:
     return request.headers.get("X-Forwarded-Proto") or request.scheme
 
 
+def _vscode_url_for_port(port: int) -> str:
+    host = _resolve_public_host()
+    scheme = _resolve_public_scheme()
+    return f"{scheme}://{host}:{port}/"
+
+
 @bp.route("/")
 def index():
     from flask import current_app
@@ -52,6 +62,72 @@ def index():
         tech=EV_TECH_BLURB,
         goal_usd=cfg["CROWDFUNDING_GOAL_USD"],
         raised_usd=cfg["CROWDFUNDING_RAISED_USD"],
+    )
+
+
+@bp.route("/login", methods=["GET", "POST"])
+def login():
+    if session.get("user_id") is not None:
+        return redirect(url_for("main.workspace"))
+
+    if request.method == "GET":
+        return render_template("login.html")
+
+    email = (request.form.get("email") or "").strip().lower()
+    password = request.form.get("password") or ""
+    if not email or "@" not in email:
+        flash("Please enter a valid email.", "error")
+        return render_template("login.html"), 400
+
+    user = User.query.filter_by(email=email).first()
+    if user is None or not user.check_password(password):
+        flash("Invalid email or password.", "error")
+        return render_template("login.html"), 401
+
+    session.clear()
+    session["user_id"] = user.id
+    session.permanent = True
+    return redirect(safe_next_url())
+
+
+@bp.route("/logout", methods=["POST"])
+def logout():
+    session.clear()
+    flash("You have been logged out.", "warning")
+    return redirect(url_for("main.index"))
+
+
+@bp.route("/workspace")
+@login_required
+def workspace():
+    uid = session.get("user_id")
+    user = db.session.get(User, uid)
+    if user is None:
+        session.clear()
+        flash("Your session is no longer valid. Please log in again.", "warning")
+        return redirect(url_for("main.login"))
+
+    host = _resolve_public_host()
+    scheme = _resolve_public_scheme()
+
+    if user.vscode_port is None:
+        return render_template(
+            "workspace.html",
+            email=user.email,
+            vscode_url=None,
+            host=host,
+            scheme=scheme,
+            no_port=True,
+        )
+
+    vscode_url = f"{scheme}://{host}:{user.vscode_port}/"
+    return render_template(
+        "workspace.html",
+        email=user.email,
+        vscode_url=vscode_url,
+        host=host,
+        scheme=scheme,
+        no_port=False,
     )
 
 
@@ -76,12 +152,11 @@ def register():
         db.session.commit()
     except IntegrityError:
         db.session.rollback()
-        flash("That email is already registered.", "error")
+        flash("That email is already registered. Try logging in instead.", "error")
         return render_template("register.html"), 409
 
     from flask import current_app
 
-    # Fresh ORM instance after commit (avoids expired/detached user when spawn touches the DB).
     user = User.query.filter_by(email=email).one()
 
     try:
@@ -96,6 +171,10 @@ def register():
     except Exception:
         db.session.rollback()
         raise
+
+    session.clear()
+    session["user_id"] = user.id
+    session.permanent = True
 
     host = _resolve_public_host()
     scheme = _resolve_public_scheme()
