@@ -33,16 +33,62 @@ def _container_name(user_id: int) -> str:
     return f"az1m0v-codeserver-{user_id}"
 
 
-def next_free_port(app_config: dict) -> int:
-    """Return the first unused host port in [VSCODE_PORT_MIN, VSCODE_PORT_MAX]."""
+def _published_host_ports_in_range(client, port_min: int, port_max: int) -> set[int]:
+    """Host ports in [port_min, port_max] already mapped by any Docker container."""
+    out: set[int] = set()
+    try:
+        for c in client.containers.list(all=True):
+            ports = (c.attrs.get("NetworkSettings") or {}).get("Ports") or {}
+            for binds in ports.values():
+                if not binds:
+                    continue
+                for b in binds:
+                    hp = b.get("HostPort")
+                    if not hp:
+                        continue
+                    try:
+                        p = int(hp)
+                    except ValueError:
+                        continue
+                    if port_min <= p <= port_max:
+                        out.add(p)
+    except Exception:
+        log.exception("failed to list published Docker ports")
+    return out
+
+
+def next_free_port(
+    app_config: dict,
+    *,
+    extra_exclude: set[int] | None = None,
+    docker_client=None,
+) -> int:
+    """
+    First unused port in [VSCODE_PORT_MIN, VSCODE_PORT_MAX].
+
+    Uses PostgreSQL assignments plus optional Docker-reported host bindings so we do not
+    pick a port that is already published (e.g. leftover code-server container) even if DB
+    is missing that row.
+    """
     port_min = app_config["VSCODE_PORT_MIN"]
     port_max = app_config["VSCODE_PORT_MAX"]
     used_rows = db.session.query(User.vscode_port).filter(User.vscode_port.isnot(None)).all()
     used = {r[0] for r in used_rows}
+    if extra_exclude:
+        used |= extra_exclude
+    if docker_client is not None:
+        used |= _published_host_ports_in_range(docker_client, port_min, port_max)
     for p in range(port_min, port_max + 1):
         if p not in used:
             return p
     raise RuntimeError("No free VS Code ports in configured range")
+
+
+def _bind_error_recoverable(exc: BaseException) -> bool:
+    msg = str(exc).lower()
+    return "port is already allocated" in msg or (
+        "bind for" in msg and "failed" in msg
+    )
 
 
 def _host_reachable_http(url: str, timeout: float = 3.0) -> bool:
@@ -83,25 +129,23 @@ def ensure_vscode_for_user(user: User, app_config: dict) -> tuple[int, str | Non
     ide_password is the code-server login password when spawn succeeds (otherwise None).
     When ENABLE_VSCODE_SPAWN is false, only assigns port without starting Docker.
     """
-    port = next_free_port(app_config)
     git_url = app_config["EV_REPO_GIT_URL"]
 
     if not app_config.get("ENABLE_VSCODE_SPAWN", True):
+        port = next_free_port(app_config)
         user.vscode_port = port
         user.vscode_container_name = None
         return port, None, None
-
-    name = _container_name(user.id)
-    password = "".join(secrets.choice(string.ascii_letters + string.digits) for _ in range(24))
 
     try:
         client = _client()
     except Exception as e:  # pragma: no cover - environment specific
         log.exception("Docker client failed")
+        port = next_free_port(app_config)
         return port, f"Docker unavailable: {e}", None
 
     try:
-        old = client.containers.get(name)
+        old = client.containers.get(_container_name(user.id))
         old.stop(timeout=5)
         old.remove()
     except Exception:
@@ -111,20 +155,44 @@ def ensure_vscode_for_user(user: User, app_config: dict) -> tuple[int, str | Non
         f"rm -rf /tmp/az1m0v && git clone --depth 1 {git_url!s} /tmp/az1m0v "
         "&& exec /usr/bin/code-server --bind-addr 0.0.0.0:8080 --auth password /tmp/az1m0v"
     )
-    try:
-        container = client.containers.run(
-            os.environ.get("CODE_SERVER_IMAGE", "codercom/code-server:latest"),
-            name=name,
-            detach=True,
-            remove=False,
-            ports={"8080/tcp": port},
-            environment={"PASSWORD": password},
-            entrypoint=["/bin/bash", "-lc"],
-            command=[shell_cmd],
-        )
-    except Exception as e:
-        log.exception("code-server start failed")
-        return port, str(e), None
+
+    name = _container_name(user.id)
+    password = "".join(secrets.choice(string.ascii_letters + string.digits) for _ in range(24))
+
+    port_min = app_config["VSCODE_PORT_MIN"]
+    port_max = app_config["VSCODE_PORT_MAX"]
+    max_tries = port_max - port_min + 1
+    attempted: set[int] = set()
+    last_err: str | None = None
+    container = None
+    port = port_min
+
+    for _ in range(max_tries):
+        port = next_free_port(app_config, extra_exclude=attempted, docker_client=client)
+        try:
+            container = client.containers.run(
+                os.environ.get("CODE_SERVER_IMAGE", "codercom/code-server:latest"),
+                name=name,
+                detach=True,
+                remove=False,
+                ports={"8080/tcp": port},
+                environment={"PASSWORD": password},
+                entrypoint=["/bin/bash", "-lc"],
+                command=[shell_cmd],
+            )
+            break
+        except Exception as e:
+            last_err = str(e)
+            log.exception("code-server start failed on port %s", port)
+            if _bind_error_recoverable(e):
+                log.warning("host port %s busy, will pick another", port)
+                attempted.add(port)
+                continue
+            return port, last_err, None
+    else:
+        return port, last_err or "No free host port for code-server", None
+
+    assert container is not None
 
     try:
         container.reload()

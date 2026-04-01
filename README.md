@@ -10,7 +10,7 @@ Public web front for **https://www.az1m0v.com**: a Flask application in Docker, 
 | After sign-up | A **confirmation page** on this site shows the IDE URL, the **one-time code-server password**, and a button to open VS Code in the browser. The server waits until the new container answers on the host port (via `host.docker.internal` from the `web` container) so you are not sent to a dead page while `git clone` runs. |
 | Host port **`WEB_HOST_PORT`** (default **5001**) | Direct access to the Flask app for debugging; maps to container port 5000. Default is not 5000 so it does not collide with other stacks (e.g. az1m0v dashboard) using 5000. Set `WEB_HOST_PORT=5000` in `.env` if that port is free. |
 
-The `web` container mounts **`/var/run/docker.sock`** so it can start sibling `codercom/code-server` containers that publish ports on the **host** (Docker maps `hostPort:8080` inside the IDE container).
+The `web` container mounts **`/var/run/docker.sock`** so it can start sibling `codercom/code-server` containers that publish ports on the **host** (Docker maps `hostPort:8080` inside the IDE container). **Port selection** merges PostgreSQL with **live Docker bindings** in your configured range, and retries if the daemon reports “port is already allocated”, so a leftover IDE container does not steal the same numeric port from the next signup.
 
 Data stored in PostgreSQL: user email, password hash, assigned `vscode_port`, optional `vscode_container_name`.
 
