@@ -1,0 +1,45 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: az1m0v
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-az1m0v_dev}
+      POSTGRES_DB: az1m0v_web
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U az1m0v -d az1m0v_web"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  web:
+    build: .
+    environment:
+      DATABASE_URL: postgresql://az1m0v:${POSTGRES_PASSWORD:-az1m0v_dev}@db:5432/az1m0v_web
+      SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
+      VSCODE_PUBLIC_HOST: ${VSCODE_PUBLIC_HOST:-localhost}
+      VSCODE_PUBLIC_SCHEME: ${VSCODE_PUBLIC_SCHEME:-http}
+      VSCODE_PORT_MIN: ${VSCODE_PORT_MIN:-9000}
+      VSCODE_PORT_MAX: ${VSCODE_PORT_MAX:-9100}
+      EV_REPO_GIT_URL: ${EV_REPO_GIT_URL:-https://github.com/DmitrySlesarev/az1m0v.git}
+      ENABLE_VSCODE_SPAWN: ${ENABLE_VSCODE_SPAWN:-1}
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "5000:5000"
+
+  openresty:
+    image: openresty/openresty:alpine
+    depends_on:
+      - web
+    ports:
+      - "80:80"
+    volumes:
+      - ./openresty/nginx.conf:/usr/local/openresty/nginx/conf/nginx.conf:ro
+
+volumes:
+  pgdata:

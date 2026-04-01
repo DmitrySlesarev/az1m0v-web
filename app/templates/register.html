@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Register — az1m0v{% endblock %}
+{% block content %}
+<section class="narrow">
+  <h1>Get your sandbox</h1>
+  <p class="prose muted">After registration you will be redirected to your personal VS Code in the browser on a dedicated host port.</p>
+  <form method="post" class="form">
+    <label for="email">Email</label>
+    <input id="email" name="email" type="email" required autocomplete="email" placeholder="you@example.com">
+    <label for="password">Password</label>
+    <input id="password" name="password" type="password" required minlength="8" autocomplete="new-password" placeholder="At least 8 characters">
+    <button class="btn btn-primary btn-block" type="submit">Register &amp; open IDE</button>
+  </form>
+  <p class="fine-print">By registering you agree that we store your email and a password hash in PostgreSQL for this demo deployment.</p>
+</section>
+{% endblock %}
