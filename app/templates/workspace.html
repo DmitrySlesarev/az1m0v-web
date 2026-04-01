@@ -6,9 +6,17 @@
   <p class="prose muted">Signed in as <strong>{{ email | e }}</strong></p>
 
   {% if no_port %}
-    <p class="flash flash-warning">No IDE port is assigned to this account yet (sandbox creation may have failed). Try registering again with a different email or contact support.</p>
+    <p class="prose">Your account does not have a browser IDE yet. That usually means signup finished before the sandbox could be created (Docker busy, port conflict, or a temporary error). You can try again here — we will pick a free host port and start code-server for you.</p>
+    {% if enable_spawn %}
+      <form method="post" action="{{ url_for('main.workspace_provision') }}" class="cta-row">
+        <button type="submit" class="btn btn-primary btn-block">Create my browser workspace</button>
+      </form>
+      <p class="fine-print">Requires the app container to have access to the Docker socket (see <code>docker-compose.yml</code>). First start can take a minute while the repo is cloned.</p>
+    {% else %}
+      <p class="flash flash-warning">Sandbox creation is disabled in this environment (<code>ENABLE_VSCODE_SPAWN=0</code>). Only a port number is reserved in the database.</p>
+    {% endif %}
   {% else %}
-    <p class="prose">Open your personal VS Code in the browser. The code-server password was shown once at signup; we do not store it. If you lost it, check the host with <code>docker logs az1m0v-codeserver-&lt;id&gt;</code> or recreate the account.</p>
+    <p class="prose">Open your personal VS Code in the browser. The code-server password was shown once when the workspace was created; we do not store it. If you lost it, check the host with <code>docker logs az1m0v-codeserver-&lt;id&gt;</code>.</p>
     <p class="cta-row">
       <a class="btn btn-primary btn-block" href="{{ vscode_url }}" target="_blank" rel="noopener">Open VS Code in the browser</a>
     </p>

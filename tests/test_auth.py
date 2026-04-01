@@ -62,6 +62,44 @@ def test_logout_clears_session(client, app):
     assert client.get("/workspace", follow_redirects=False).status_code == 302
 
 
+def test_workspace_provision_creates_port(client, app):
+    with app.app_context():
+        u = User(email="provision@example.com")
+        u.set_password("password12")
+        db.session.add(u)
+        db.session.commit()
+
+    client.post(
+        "/login",
+        data={"email": "provision@example.com", "password": "password12"},
+    )
+    r = client.post("/workspace/provision", follow_redirects=False)
+    assert r.status_code == 200
+    assert b"Open VS Code" in r.data or b"code-server" in r.data.lower()
+
+    with app.app_context():
+        u = User.query.filter_by(email="provision@example.com").one()
+        assert u.vscode_port is not None
+        assert 9000 <= u.vscode_port <= 9100
+
+
+def test_workspace_provision_skips_when_already_has_port(client, app):
+    with app.app_context():
+        u = User(email="hasport@example.com")
+        u.set_password("password12")
+        u.vscode_port = 9005
+        db.session.add(u)
+        db.session.commit()
+
+    client.post(
+        "/login",
+        data={"email": "hasport@example.com", "password": "password12"},
+    )
+    r = client.post("/workspace/provision", follow_redirects=False)
+    assert r.status_code == 302
+    assert "/workspace" in r.headers["Location"]
+
+
 def test_login_page_redirects_when_already_logged_in(client, app):
     with app.app_context():
         u = User(email="auth4@example.com")

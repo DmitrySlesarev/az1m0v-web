@@ -43,10 +43,52 @@ def _resolve_public_scheme() -> str:
     return request.headers.get("X-Forwarded-Proto") or request.scheme
 
 
-def _vscode_url_for_port(port: int) -> str:
+def _ide_launch_response(user: User, *, account_created: bool = False):
+    """
+    Run ensure_vscode_for_user, commit, return ide_launch.html.
+    Used after registration and from workspace "provision" when no port yet.
+    """
+    from flask import current_app
+
+    try:
+        port, err, ide_password = ensure_vscode_for_user(user, dict(current_app.config))
+    except Exception as e:
+        current_app.logger.exception("ensure_vscode_for_user")
+        port = current_app.config["VSCODE_PORT_MIN"]
+        err, ide_password = str(e), None
+
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        raise
+
     host = _resolve_public_host()
     scheme = _resolve_public_scheme()
-    return f"{scheme}://{host}:{port}/"
+    vscode_url = f"{scheme}://{host}:{port}/"
+
+    if err and ide_password is None:
+        if account_created:
+            flash(f"Account created, but the IDE could not be started: {err}", "error")
+        else:
+            flash(f"Could not start the workspace: {err}", "error")
+        return render_template(
+            "ide_launch.html",
+            vscode_url=vscode_url,
+            ide_password=None,
+            warn=None,
+            error_detail=err,
+        )
+
+    warn = err if err else None
+
+    return render_template(
+        "ide_launch.html",
+        vscode_url=vscode_url,
+        ide_password=ide_password,
+        warn=warn,
+        error_detail=None,
+    )
 
 
 @bp.route("/")
@@ -111,6 +153,8 @@ def workspace():
     scheme = _resolve_public_scheme()
 
     if user.vscode_port is None:
+        from flask import current_app
+
         return render_template(
             "workspace.html",
             email=user.email,
@@ -118,6 +162,7 @@ def workspace():
             host=host,
             scheme=scheme,
             no_port=True,
+            enable_spawn=current_app.config.get("ENABLE_VSCODE_SPAWN", True),
         )
 
     vscode_url = f"{scheme}://{host}:{user.vscode_port}/"
@@ -128,7 +173,26 @@ def workspace():
         host=host,
         scheme=scheme,
         no_port=False,
+        enable_spawn=True,
     )
+
+
+@bp.route("/workspace/provision", methods=["POST"])
+@login_required
+def workspace_provision():
+    """Create or retry the personal code-server sandbox for this account."""
+    uid = session.get("user_id")
+    user = User.query.filter_by(id=uid).one_or_none()
+    if user is None:
+        session.clear()
+        flash("Your session is no longer valid. Please log in again.", "warning")
+        return redirect(url_for("main.login"))
+
+    if user.vscode_port is not None:
+        flash("Your workspace is already set up. Use the link below.", "warning")
+        return redirect(url_for("main.workspace"))
+
+    return _ide_launch_response(user, account_created=False)
 
 
 @bp.route("/register", methods=["GET", "POST"])
@@ -155,50 +219,13 @@ def register():
         flash("That email is already registered. Try logging in instead.", "error")
         return render_template("register.html"), 409
 
-    from flask import current_app
-
     user = User.query.filter_by(email=email).one()
-
-    try:
-        port, err, ide_password = ensure_vscode_for_user(user, dict(current_app.config))
-    except Exception as e:
-        current_app.logger.exception("ensure_vscode_for_user")
-        port = current_app.config["VSCODE_PORT_MIN"]
-        err, ide_password = str(e), None
-
-    try:
-        db.session.commit()
-    except Exception:
-        db.session.rollback()
-        raise
 
     session.clear()
     session["user_id"] = user.id
     session.permanent = True
 
-    host = _resolve_public_host()
-    scheme = _resolve_public_scheme()
-    vscode_url = f"{scheme}://{host}:{port}/"
-
-    if err and ide_password is None:
-        flash(f"Account created, but the IDE could not be started: {err}", "error")
-        return render_template(
-            "ide_launch.html",
-            vscode_url=vscode_url,
-            ide_password=None,
-            warn=None,
-            error_detail=err,
-        )
-
-    warn = err if err else None
-
-    return render_template(
-        "ide_launch.html",
-        vscode_url=vscode_url,
-        ide_password=ide_password,
-        warn=warn,
-        error_detail=None,
-    )
+    return _ide_launch_response(user, account_created=True)
 
 
 @bp.route("/health")

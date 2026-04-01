@@ -18,7 +18,8 @@ Data stored in PostgreSQL: user email, password hash, assigned `vscode_port`, op
 
 - **Register** (`/register`) creates the user and opens a **signed cookie session** (`user_id`), same as after a normal login.
 - **Log in** (`/login`) uses email + password (hashed with Werkzeug). After success you are sent to **`/workspace`** (or a safe relative `?next=` path only — open redirects are blocked).
-- **Workspace** (`/workspace`) shows your browser IDE URL for your assigned host port. The **code-server password** is only shown once on the post-registration page; we do not store it in the database.
+- **Workspace** (`/workspace`) shows your browser IDE URL for your assigned host port. If signup did not leave a port (or provisioning failed), use **Create my browser workspace** (`POST /workspace/provision`) to run the same Docker flow again without a new account.
+- The **code-server password** is only shown on the post-registration page or after a successful provision from `/workspace`; we do not store it in the database.
 - **Log out** — `POST /logout` (header button). Session lifetime defaults to **14 days** for “remember me” style persistence (`session.permanent`).
 
 For HTTPS deployments, set **`SESSION_COOKIE_SECURE=1`** in the environment so browsers only send the session cookie over TLS.
