@@ -1,43 +1,43 @@
 {% extends "base.html" %}
-{% block title %}az1m0v — Crowdfunding &amp; EV platform{% endblock %}
+{% block title %}{{ brand }} — {{ _('nav_campaign') }}{% endblock %}
 {% block content %}
 <section class="hero">
-  <p class="eyebrow">Electric vehicle software · open source</p>
+  <p class="eyebrow">{{ _('index_eyebrow') }}</p>
   <h1>{{ tagline }}</h1>
-  <p class="lead">Fund the next milestones for the az1m0v stack: batteries, charging, safety, and field-ready integrations.</p>
+  <p class="lead">{{ _('index_lead') }}</p>
   <div class="hero-actions">
-    <a class="btn btn-primary" href="{{ url_for('main.register') }}">Register for a browser IDE</a>
-    <a class="btn btn-ghost" href="#story">Read the story</a>
+    <a class="btn btn-primary" href="{{ url_for('main.register') }}">{{ _('index_btn_register_ide') }}</a>
+    <a class="btn btn-ghost" href="#story">{{ _('index_btn_story') }}</a>
   </div>
 </section>
 
 <section class="stats" aria-label="Campaign progress">
   <div class="stat-card">
-    <span class="stat-label">Goal</span>
+    <span class="stat-label">{{ _('index_stats_goal') }}</span>
     <span class="stat-value">${{ "{:,}".format(goal_usd) }}</span>
   </div>
   <div class="stat-card">
-    <span class="stat-label">Raised</span>
+    <span class="stat-label">{{ _('index_stats_raised') }}</span>
     <span class="stat-value">${{ "{:,}".format(raised_usd) }}</span>
   </div>
   <div class="stat-card stat-wide">
-    <span class="stat-label">Progress</span>
+    <span class="stat-label">{{ _('index_stats_progress') }}</span>
     {% set pct = (raised_usd / (goal_usd or 1) * 100) | round(1) %}
     {% set bar_w = [pct, 100] | min %}
     <div class="progress" role="progressbar" aria-valuenow="{{ pct }}" aria-valuemin="0" aria-valuemax="100">
       <div class="progress-bar" style="width: {{ bar_w }}%;"></div>
     </div>
-    <span class="stat-sub">{{ pct }}% of goal (demo figures — configure via env)</span>
+    <span class="stat-sub">{{ _('index_stats_demo', pct=pct) }}</span>
   </div>
 </section>
 
 <section id="story" class="section">
-  <h2>Why this campaign</h2>
+  <h2>{{ _('index_why_title') }}</h2>
   <p class="prose">{{ pitch.strip() }}</p>
 </section>
 
 <section class="section">
-  <h2>What az1m0v delivers</h2>
+  <h2>{{ _('index_delivers_title') }}</h2>
   <ul class="feature-list">
     {% for line in highlights %}
       <li>{{ line }}</li>
@@ -48,9 +48,9 @@
 
 <section class="section cta-band">
   <div>
-    <h2>Try the repo in your browser</h2>
-    <p class="prose">Create an account. We spin up a personal code-server with the public GitHub tree cloned in.</p>
+    <h2>{{ _('index_cta_title') }}</h2>
+    <p class="prose">{{ _('index_cta_text') }}</p>
   </div>
-  <a class="btn btn-primary" href="{{ url_for('main.register') }}">Sign up</a>
+  <a class="btn btn-primary" href="{{ url_for('main.register') }}">{{ _('index_cta_signup') }}</a>
 </section>
 {% endblock %}

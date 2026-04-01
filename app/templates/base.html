@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ html_lang }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}az1m0v — EV platform{% endblock %}</title>
+  <title>{% block title %}{{ brand }} — {{ _('default_title_suffix') }}{% endblock %}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
@@ -12,19 +12,30 @@
 <body>
   <header class="site-header">
     <div class="wrap header-inner">
-      <a class="logo" href="{{ url_for('main.index') }}">az1m0v</a>
-      <nav class="nav">
-        <a href="{{ url_for('main.index') }}">Campaign</a>
+      <a class="logo" href="{{ url_for('main.index') }}">{{ brand }}</a>
+      <nav class="nav" aria-label="Main">
+        <a href="{{ url_for('main.index') }}">{{ _('nav_campaign') }}</a>
+        <a href="{{ url_for('main.project_readme') }}">{{ _('nav_readme') }}</a>
         {% if session.get('user_id') %}
-          <a href="{{ url_for('main.workspace') }}">Workspace</a>
+          <a href="{{ url_for('main.workspace') }}">{{ _('nav_workspace') }}</a>
           <form method="post" action="{{ url_for('main.logout') }}" class="nav-logout-form">
-            <button type="submit" class="nav-link-btn">Log out</button>
+            <button type="submit" class="nav-link-btn">{{ _('nav_logout') }}</button>
           </form>
         {% else %}
-          <a href="{{ url_for('main.login') }}">Log in</a>
-          <a href="{{ url_for('main.register') }}">Get sandbox</a>
+          <a href="{{ url_for('main.login') }}">{{ _('nav_login') }}</a>
+          <a href="{{ url_for('main.register') }}">{{ _('nav_sandbox') }}</a>
         {% endif %}
       </nav>
+      <div class="lang-switcher" role="group" aria-label="Language">
+        {% for code, flag, title in lang_choices %}
+          <a
+            href="{{ url_for('main.set_language', lang=code, next=request.path) }}"
+            class="lang-flag{% if code == current_locale %} lang-flag-active{% endif %}"
+            title="{{ title }}"
+            hreflang="{{ code }}"
+          >{{ flag }}</a>
+        {% endfor %}
+      </div>
     </div>
   </header>
   <main class="wrap">
@@ -41,7 +52,7 @@
   </main>
   <footer class="site-footer">
     <div class="wrap footer-inner">
-      <span>az1m0v — open EV management · <a href="https://www.az1m0v.com">www.az1m0v.com</a></span>
+      <span>{{ brand }} — {{ _('footer_ev') }} · <a href="https://www.az1m0v.com">www.az1m0v.com</a> · {{ _('footer_brand_note') }}</span>
     </div>
   </footer>
 </body>

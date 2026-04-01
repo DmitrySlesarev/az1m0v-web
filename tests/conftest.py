@@ -4,6 +4,15 @@ from app import create_app
 from app.extensions import db
 
 
+@pytest.fixture(autouse=True)
+def _reset_readme_cache():
+    from app.readme_fetch import clear_readme_cache
+
+    clear_readme_cache()
+    yield
+    clear_readme_cache()
+
+
 @pytest.fixture
 def app():
     application = create_app(

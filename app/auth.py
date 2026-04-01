@@ -33,3 +33,10 @@ def safe_next_url(fallback_endpoint: str = "main.workspace") -> str:
     if not target.startswith("/") or target.startswith("//"):
         return url_for(fallback_endpoint)
     return target
+
+
+def is_safe_relative_redirect(target: str) -> bool:
+    if not target or not target.startswith("/") or target.startswith("//"):
+        return False
+    parsed = urlparse(target)
+    return not parsed.scheme and not parsed.netloc

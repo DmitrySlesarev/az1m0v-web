@@ -1,13 +1,13 @@
 {% extends "base.html" %}
-{% block title %}Your IDE — az1m0v{% endblock %}
+{% block title %}{{ _('ide_title') }} — {{ brand }}{% endblock %}
 {% block content %}
 <section class="narrow ide-launch">
-  <h1>Your browser workspace is ready</h1>
+  <h1>{{ _('ide_heading_ready') }}</h1>
   {% if error_detail %}
-    <p class="prose flash flash-error">We could not start code-server automatically. Assigned port for this account: <strong>{{ vscode_url }}</strong></p>
+    <p class="prose flash flash-error">{{ _('ide_error_intro') }} <strong>{{ vscode_url | e }}</strong></p>
     <p class="prose muted">{{ error_detail | e }}</p>
   {% else %}
-    <p class="prose">Open the link below. code-server may take a few seconds on first start while the repository is cloned.</p>
+    <p class="prose">{{ _('ide_ok_intro') }}</p>
   {% endif %}
 
   {% if warn %}
@@ -16,16 +16,16 @@
 
   {% if ide_password %}
     <div class="password-box">
-      <span class="stat-label">code-server password (copy — you will not see it again here)</span>
+      <span class="stat-label">{{ _('ide_password_label') }}</span>
       <code id="ide-pw">{{ ide_password }}</code>
-      <button type="button" class="btn btn-ghost btn-block" id="copy-pw">Copy password</button>
+      <button type="button" class="btn btn-ghost btn-block" id="copy-pw">{{ _('ide_copy_pw') }}</button>
     </div>
   {% endif %}
 
   <p class="cta-row">
-    <a class="btn btn-primary btn-block" href="{{ vscode_url }}" target="_blank" rel="noopener">Open VS Code in the browser</a>
+    <a class="btn btn-primary btn-block" href="{{ vscode_url }}" target="_blank" rel="noopener">{{ _('ide_open_btn') }}</a>
   </p>
-  <p class="fine-print">If the page does not load, wait ~30s for <code>git clone</code> to finish, then retry. Check <code>docker logs az1m0v-codeserver-&lt;id&gt;</code> on the host if needed.</p>
+  <p class="fine-print">{{ _('ide_fine_print') }} <code>docker logs {{ brand }}-codeserver-&lt;id&gt;</code></p>
 </section>
 <script>
 (function () {
@@ -34,7 +34,7 @@
   if (!btn || !el) return;
   btn.addEventListener('click', function () {
     navigator.clipboard.writeText(el.textContent.trim()).then(function () {
-      btn.textContent = 'Copied';
+      btn.textContent = 'OK';
     });
   });
 })();

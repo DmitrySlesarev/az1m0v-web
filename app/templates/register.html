@@ -1,17 +1,17 @@
 {% extends "base.html" %}
-{% block title %}Register — az1m0v{% endblock %}
+{% block title %}{{ _('register_title') }} — {{ brand }}{% endblock %}
 {% block content %}
 <section class="narrow">
-  <h1>Get your sandbox</h1>
-  <p class="prose muted">After registration you will be redirected to your personal VS Code in the browser on a dedicated host port.</p>
+  <h1>{{ _('register_title') }}</h1>
+  <p class="prose muted">{{ _('register_intro') }}</p>
   <form method="post" class="form">
-    <label for="email">Email</label>
+    <label for="email">{{ _('register_email') }}</label>
     <input id="email" name="email" type="email" required autocomplete="email" placeholder="you@example.com">
-    <label for="password">Password</label>
-    <input id="password" name="password" type="password" required minlength="8" autocomplete="new-password" placeholder="At least 8 characters">
-    <button class="btn btn-primary btn-block" type="submit">Register &amp; open IDE</button>
+    <label for="password">{{ _('register_password') }}</label>
+    <input id="password" name="password" type="password" required minlength="8" autocomplete="new-password" placeholder="••••••••">
+    <button class="btn btn-primary btn-block" type="submit">{{ _('register_submit') }}</button>
   </form>
-  <p class="fine-print">By registering you agree that we store your email and a password hash in PostgreSQL for this demo deployment.</p>
-  <p class="fine-print">Already have an account? <a href="{{ url_for('main.login') }}">Log in</a></p>
+  <p class="fine-print">{{ _('register_agree') }}</p>
+  <p class="fine-print">{{ _('register_have_account') }} <a href="{{ url_for('main.login') }}">{{ _('register_login_link') }}</a></p>
 </section>
 {% endblock %}

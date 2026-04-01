@@ -1,30 +1,30 @@
 {% extends "base.html" %}
-{% block title %}Workspace — az1m0v{% endblock %}
+{% block title %}{{ _('workspace_title') }} — {{ brand }}{% endblock %}
 {% block content %}
 <section class="narrow ide-launch">
-  <h1>Your workspace</h1>
-  <p class="prose muted">Signed in as <strong>{{ email | e }}</strong></p>
+  <h1>{{ _('workspace_title') }}</h1>
+  <p class="prose muted">{{ _('workspace_signed_in') }} <strong>{{ email | e }}</strong></p>
 
   {% if no_port %}
-    <p class="prose">Your account does not have a browser IDE yet. That usually means signup finished before the sandbox could be created (Docker busy, port conflict, or a temporary error). You can try again here — we will pick a free host port and start code-server for you.</p>
+    <p class="prose">{{ _('workspace_no_port_p1') }}</p>
     {% if enable_spawn %}
       <form method="post" action="{{ url_for('main.workspace_provision') }}" class="cta-row">
-        <button type="submit" class="btn btn-primary btn-block">Create my browser workspace</button>
+        <button type="submit" class="btn btn-primary btn-block">{{ _('workspace_provision_btn') }}</button>
       </form>
-      <p class="fine-print">Requires the app container to have access to the Docker socket (see <code>docker-compose.yml</code>). First start can take a minute while the repo is cloned.</p>
+      <p class="fine-print">{{ _('workspace_provision_note') }}</p>
     {% else %}
-      <p class="flash flash-warning">Sandbox creation is disabled in this environment (<code>ENABLE_VSCODE_SPAWN=0</code>). Only a port number is reserved in the database.</p>
+      <p class="flash flash-warning">{{ _('workspace_spawn_disabled') }}</p>
     {% endif %}
   {% else %}
-    <p class="prose">Open your personal VS Code in the browser. The code-server password was shown once when the workspace was created; we do not store it. If you lost it, check the host with <code>docker logs az1m0v-codeserver-&lt;id&gt;</code>.</p>
+    <p class="prose">{{ _('workspace_has_port_intro') }} <code>docker logs {{ brand }}-codeserver-&lt;id&gt;</code>.</p>
     <p class="cta-row">
-      <a class="btn btn-primary btn-block" href="{{ vscode_url }}" target="_blank" rel="noopener">Open VS Code in the browser</a>
+      <a class="btn btn-primary btn-block" href="{{ vscode_url }}" target="_blank" rel="noopener">{{ _('workspace_open_btn') }}</a>
     </p>
-    <p class="fine-print">URL: <code>{{ vscode_url | e }}</code></p>
+    <p class="fine-print">{{ _('workspace_url_label') }} <code>{{ vscode_url | e }}</code></p>
   {% endif %}
 
   <form method="post" action="{{ url_for('main.logout') }}" class="inline-logout">
-    <button type="submit" class="btn btn-ghost">Log out</button>
+    <button type="submit" class="btn btn-ghost">{{ _('nav_logout') }}</button>
   </form>
 </section>
 {% endblock %}

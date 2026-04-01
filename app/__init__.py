@@ -33,6 +33,11 @@ def create_app(test_config: dict | None = None) -> Flask:
             "https://github.com/DmitrySlesarev/az1m0v.git",
         ),
         ENABLE_VSCODE_SPAWN=os.environ.get("ENABLE_VSCODE_SPAWN", "1") == "1",
+        EV_README_BRANCH=os.environ.get("EV_README_BRANCH", "master"),
+        EV_REPO_PAGE_URL=os.environ.get(
+            "EV_REPO_PAGE_URL",
+            "https://github.com/DmitrySlesarev/az1m0v",
+        ),
         CROWDFUNDING_GOAL_USD=_env_int("CROWDFUNDING_GOAL_USD", 250000),
         CROWDFUNDING_RAISED_USD=_env_int("CROWDFUNDING_RAISED_USD", 42000),
         PERMANENT_SESSION_LIFETIME=timedelta(days=14),
@@ -45,6 +50,18 @@ def create_app(test_config: dict | None = None) -> Flask:
 
     db.init_app(app)
     app.register_blueprint(bp)
+
+    @app.before_request
+    def _attach_request_locale():
+        from app.i18n import attach_locale_to_g
+
+        attach_locale_to_g()
+
+    @app.context_processor
+    def _i18n_globals():
+        from app.i18n import inject_template_globals
+
+        return inject_template_globals()
 
     with app.app_context():
         db.create_all()

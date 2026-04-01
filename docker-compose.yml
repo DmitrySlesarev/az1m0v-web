@@ -28,6 +28,8 @@ services:
       VSCODE_PORT_MIN: ${VSCODE_PORT_MIN:-9000}
       VSCODE_PORT_MAX: ${VSCODE_PORT_MAX:-9100}
       EV_REPO_GIT_URL: ${EV_REPO_GIT_URL:-https://github.com/DmitrySlesarev/az1m0v.git}
+      EV_README_BRANCH: ${EV_README_BRANCH:-master}
+      EV_REPO_PAGE_URL: ${EV_REPO_PAGE_URL:-https://github.com/DmitrySlesarev/az1m0v}
       ENABLE_VSCODE_SPAWN: ${ENABLE_VSCODE_SPAWN:-1}
     depends_on:
       db:

@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}{{ _('readme_title') }} — {{ brand }}{% endblock %}
+{% block content %}
+<section class="readme-wrap">
+  <header class="readme-header">
+    <h1>{{ _('readme_title') }}</h1>
+    <p class="prose muted">{{ _('readme_intro') }}</p>
+    <p>
+      <a class="btn btn-primary" href="{{ github_url }}" target="_blank" rel="noopener">{{ _('readme_view_github') }}</a>
+    </p>
+  </header>
+  {% if readme_html %}
+    <article class="markdown-body">{{ readme_html | safe }}</article>
+  {% else %}
+    <p class="flash flash-error">{{ _('readme_load_error') }}{% if fetch_error %} ({{ fetch_error | e }}){% endif %}</p>
+  {% endif %}
+</section>
+{% endblock %}

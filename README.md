@@ -24,6 +24,13 @@ Data stored in PostgreSQL: user email, password hash, assigned `vscode_port`, op
 
 For HTTPS deployments, set **`SESSION_COOKIE_SECURE=1`** in the environment so browsers only send the session cookie over TLS.
 
+### Internationalisation and project README
+
+- **Languages**: flag buttons in the site header switch **English** (default), **Russian**, **German**, and **Chinese**. The choice is stored in the `locale` cookie; you can also pass **`?lang=`** (`en`, `ru`, `de`, `zh`) for a single request.
+- **EV project README**: **`/project/readme`** loads the raw `README.md` from the [az1m0v GitHub repository](https://github.com/DmitrySlesarev/az1m0v) (see **`EV_README_BRANCH`** and **`EV_REPO_PAGE_URL`** below).
+
+Branding uses **az1m0v** with a digit **0**, not the letter O.
+
 ## Prerequisites
 
 - Docker and Docker Compose v2
@@ -56,6 +63,8 @@ See `.env.example`. Important:
 | `HOST_GATEWAY` | Hostname the `web` container uses to reach **host-published** IDE ports (default `host.docker.internal`, wired in Compose via `extra_hosts`). |
 | `VSCODE_PORT_MIN` / `VSCODE_PORT_MAX` | Inclusive range of **host** ports for code-server; must be open in the firewall. |
 | `EV_REPO_GIT_URL` | Default `https://github.com/DmitrySlesarev/az1m0v.git` (public clone). |
+| `EV_README_BRANCH` | Git branch for `/project/readme` raw fetch (default `master`). |
+| `EV_REPO_PAGE_URL` | GitHub repo page URL for links (default `https://github.com/DmitrySlesarev/az1m0v`). |
 | `ENABLE_VSCODE_SPAWN` | Set `0` to disable Docker API and only assign ports in DB (e.g. tests). |
 | `SESSION_COOKIE_SECURE` | Set to `1` when the site is HTTPS-only so the session cookie is not sent over plain HTTP. |
 

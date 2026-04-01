@@ -9,15 +9,12 @@ from flask import (
 )
 from sqlalchemy.exc import IntegrityError
 
-from app.auth import login_required, safe_next_url
-from app.ev_content import (
-    EV_CROWDFUNDING_PITCH,
-    EV_HIGHLIGHTS,
-    EV_TAGLINE,
-    EV_TECH_BLURB,
-)
+from app.auth import is_safe_relative_redirect, login_required, safe_next_url
+from app.content_locale import get_campaign_content
 from app.extensions import db
+from app.i18n import DEFAULT_LOCALE, SUPPORTED_LOCALES, _
 from app.models import User
+from app.readme_fetch import fetch_readme_html
 from app.vscode_manager import ensure_vscode_for_user
 
 bp = Blueprint("main", __name__)
@@ -69,9 +66,9 @@ def _ide_launch_response(user: User, *, account_created: bool = False):
 
     if err and ide_password is None:
         if account_created:
-            flash(f"Account created, but the IDE could not be started: {err}", "error")
+            flash(_("flash_ide_failed_register", detail=err), "error")
         else:
-            flash(f"Could not start the workspace: {err}", "error")
+            flash(_("flash_ide_failed_workspace", detail=err), "error")
         return render_template(
             "ide_launch.html",
             vscode_url=vscode_url,
@@ -81,6 +78,8 @@ def _ide_launch_response(user: User, *, account_created: bool = False):
         )
 
     warn = err if err else None
+    if warn and "still starting" in warn.lower():
+        warn = _("ide_warn_slow")
 
     return render_template(
         "ide_launch.html",
@@ -91,19 +90,56 @@ def _ide_launch_response(user: User, *, account_created: bool = False):
     )
 
 
+@bp.route("/set-language/<lang>")
+def set_language(lang):
+    loc = lang if lang in SUPPORTED_LOCALES else DEFAULT_LOCALE
+    nxt = (request.args.get("next") or "/").strip() or "/"
+    if not is_safe_relative_redirect(nxt):
+        nxt = url_for("main.index")
+    resp = redirect(nxt)
+    resp.set_cookie(
+        "locale",
+        loc,
+        max_age=365 * 24 * 3600,
+        samesite="Lax",
+        path="/",
+        httponly=False,
+    )
+    return resp
+
+
 @bp.route("/")
 def index():
     from flask import current_app
 
     cfg = current_app.config
+    camp = get_campaign_content()
     return render_template(
         "index.html",
-        tagline=EV_TAGLINE,
-        highlights=EV_HIGHLIGHTS,
-        pitch=EV_CROWDFUNDING_PITCH,
-        tech=EV_TECH_BLURB,
+        tagline=camp["tagline"],
+        highlights=camp["highlights"],
+        pitch=camp["pitch"],
+        tech=camp["tech"],
         goal_usd=cfg["CROWDFUNDING_GOAL_USD"],
         raised_usd=cfg["CROWDFUNDING_RAISED_USD"],
+    )
+
+
+@bp.route("/project/readme")
+def project_readme():
+    from flask import current_app
+
+    branch = current_app.config.get("EV_README_BRANCH", "master")
+    github_url = current_app.config.get(
+        "EV_REPO_PAGE_URL",
+        "https://github.com/DmitrySlesarev/az1m0v",
+    )
+    html, fetch_err = fetch_readme_html(branch)
+    return render_template(
+        "readme.html",
+        readme_html=html,
+        fetch_error=fetch_err,
+        github_url=github_url,
     )
 
 
@@ -118,12 +154,12 @@ def login():
     email = (request.form.get("email") or "").strip().lower()
     password = request.form.get("password") or ""
     if not email or "@" not in email:
-        flash("Please enter a valid email.", "error")
+        flash(_("flash_invalid_email"), "error")
         return render_template("login.html"), 400
 
     user = User.query.filter_by(email=email).first()
     if user is None or not user.check_password(password):
-        flash("Invalid email or password.", "error")
+        flash(_("flash_invalid_login"), "error")
         return render_template("login.html"), 401
 
     session.clear()
@@ -135,7 +171,7 @@ def login():
 @bp.route("/logout", methods=["POST"])
 def logout():
     session.clear()
-    flash("You have been logged out.", "warning")
+    flash(_("flash_logged_out"), "warning")
     return redirect(url_for("main.index"))
 
 
@@ -146,7 +182,7 @@ def workspace():
     user = db.session.get(User, uid)
     if user is None:
         session.clear()
-        flash("Your session is no longer valid. Please log in again.", "warning")
+        flash(_("flash_session_invalid"), "warning")
         return redirect(url_for("main.login"))
 
     host = _resolve_public_host()
@@ -185,11 +221,11 @@ def workspace_provision():
     user = User.query.filter_by(id=uid).one_or_none()
     if user is None:
         session.clear()
-        flash("Your session is no longer valid. Please log in again.", "warning")
+        flash(_("flash_session_invalid"), "warning")
         return redirect(url_for("main.login"))
 
     if user.vscode_port is not None:
-        flash("Your workspace is already set up. Use the link below.", "warning")
+        flash(_("flash_workspace_ready"), "warning")
         return redirect(url_for("main.workspace"))
 
     return _ide_launch_response(user, account_created=False)
@@ -203,10 +239,10 @@ def register():
     email = (request.form.get("email") or "").strip().lower()
     password = request.form.get("password") or ""
     if not email or "@" not in email:
-        flash("Please enter a valid email.", "error")
+        flash(_("flash_invalid_email"), "error")
         return render_template("register.html"), 400
     if len(password) < 8:
-        flash("Password must be at least 8 characters.", "error")
+        flash(_("flash_password_short"), "error")
         return render_template("register.html"), 400
 
     user = User(email=email)
@@ -216,7 +252,7 @@ def register():
         db.session.commit()
     except IntegrityError:
         db.session.rollback()
-        flash("That email is already registered. Try logging in instead.", "error")
+        flash(_("flash_email_registered"), "error")
         return render_template("register.html"), 409
 
     user = User.query.filter_by(email=email).one()
