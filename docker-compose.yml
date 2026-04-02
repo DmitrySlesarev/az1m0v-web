@@ -42,13 +42,29 @@ services:
       - "${WEB_HOST_PORT:-5001}:5000"
 
   openresty:
-    image: openresty/openresty:alpine
+    build: ./openresty
     depends_on:
       - web
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}
     ports:
       - "80:80"
+      - "443:443"
     volumes:
-      - ./openresty/nginx.conf:/usr/local/openresty/nginx/conf/nginx.conf:ro
+      - letsencrypt:/etc/letsencrypt:ro
+      - certbot-www:/var/www/certbot:ro
+
+  # Used via: docker compose --profile certbot run --rm certbot … (not started by default).
+  certbot:
+    image: certbot/certbot
+    profiles:
+      - certbot
+    volumes:
+      - letsencrypt:/etc/letsencrypt
+      - certbot-www:/var/www/certbot
+    entrypoint: certbot
 
 volumes:
   pgdata:
+  letsencrypt:
+  certbot-www:

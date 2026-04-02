@@ -1,0 +1,13 @@
+[Unit]
+Description=Daily Let's Encrypt renewal for az1m0v-web
+
+[Timer]
+# Twice daily (recommended by certbot); renew only runs when the cert is within ~30 days of expiry
+# (Let's Encrypt issues 90-day certs, so effective renewal is roughly every ~60 days).
+OnCalendar=*-*-* 03:00:00
+OnCalendar=*-*-* 15:00:00
+RandomizedDelaySec=1h
+Persistent=true
+
+[Install]
+WantedBy=timers.target

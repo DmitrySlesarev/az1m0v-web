@@ -1,12 +1,13 @@
 # az1m0v-web
 
-Public web front for **https://www.az1m0v.com**: a Flask application in Docker, PostgreSQL for accounts, OpenResty as the reverse proxy for the main site on port 80, and **per-user [code-server](https://github.com/coder/code-server)** (VS Code in the browser) on **dedicated host ports** after registration. Each IDE container clones the EV project from GitHub (HTTPS by default; see below for SSH).
+Public web front for **https://www.az1m0v.com**: a Flask application in Docker, PostgreSQL for accounts, OpenResty as the reverse proxy for the main site on ports **80** and **443** (Let’s Encrypt when configured), and **per-user [code-server](https://github.com/coder/code-server)** (VS Code in the browser) on **dedicated host ports** after registration. Each IDE container clones the EV project from GitHub (HTTPS by default; see below for SSH).
 
 ## Architecture
 
 | Traffic | Behaviour |
 |--------|------------|
-| `http://host/` (port **80**) | OpenResty proxies to Gunicorn/Flask: landing page, **`/login`**, **`/register`**, **`/workspace`** (session required). |
+| `http://host/` (port **80**) | OpenResty: ACME HTTP-01 at `/.well-known/acme-challenge/` (Let’s Encrypt). Without a cert yet: proxy to Flask. With a cert: other paths redirect to HTTPS. |
+| `https://host/` (port **443**) | After `scripts/init-letsencrypt.sh`, OpenResty serves TLS and proxies to Flask; **`X-Forwarded-Proto` is `https`** (landing, **`/login`**, **`/register`**, **`/workspace`**). |
 | After sign-up | A **confirmation page** on this site shows the IDE URL, the **one-time code-server password**, and a button to open VS Code in the browser. The server waits until the new container answers on the host port (via `host.docker.internal` from the `web` container) so you are not sent to a dead page while `git clone` runs. |
 | Host port **`WEB_HOST_PORT`** (default **5001**) | Direct access to the Flask app for debugging; maps to container port 5000. Default is not 5000 so it does not collide with other stacks (e.g. az1m0v dashboard) using 5000. Set `WEB_HOST_PORT=5000` in `.env` if that port is free. |
 
@@ -41,9 +42,11 @@ Branding uses **az1m0v** with a digit **0**, not the letter O.
 ```bash
 cd az1m0v-web
 cp .env.example .env
-# Edit .env: set POSTGRES_PASSWORD, SECRET_KEY, and optionally VSCODE_PUBLIC_HOST
+# Edit .env: set POSTGRES_PASSWORD, SECRET_KEY; for production TLS also DOMAIN and LETSENCRYPT_EMAIL
 
 docker compose up --build -d
+# First-time HTTPS (DNS must already point to this host):
+# ./scripts/init-letsencrypt.sh
 ```
 
 - Main site (via OpenResty): **http://localhost/**  
@@ -58,6 +61,9 @@ See `.env.example`. Important:
 
 | Variable | Purpose |
 |----------|---------|
+| `DOMAIN` | Hostname for OpenResty `server_name` and Let’s Encrypt (e.g. `www.az1m0v.com`). Default `localhost` skips TLS automation. |
+| `LETSENCRYPT_EMAIL` | Email for Let’s Encrypt account / expiry notices. Required with `DOMAIN` for `init-letsencrypt.sh`. |
+| `CERTBOT_STAGING` | Set `1` to use the Let’s Encrypt **staging** CA while testing (avoids production rate limits). |
 | `VSCODE_PUBLIC_HOST` | Optional. If unset, the IDE link uses the same **Host** / `X-Forwarded-Host` as the browser (recommended behind OpenResty). Set for fixed production URLs (e.g. `www.az1m0v.com`). |
 | `VSCODE_PUBLIC_SCHEME` | Optional. If unset, uses `X-Forwarded-Proto` or the request scheme. |
 | `HOST_GATEWAY` | Hostname the `web` container uses to reach **host-published** IDE ports (default `host.docker.internal`, wired in Compose via `extra_hosts`). |
@@ -99,19 +105,32 @@ Tests use SQLite in-memory, `ENABLE_VSCODE_SPAWN=0`, and do not require Docker.
 
 ## Production / remote hosting
 
-1. **Server**: Linux VM or bare metal with Docker, ports **80** (and **443** if you terminate TLS) open; open the **VS Code port range** (e.g. 9000–9100) in the firewall and security groups.
+1. **Server**: Linux VM or bare metal with Docker, ports **80** and **443** open for the site; open the **VS Code port range** (e.g. 9000–9100) in the firewall and security groups.
 2. **Secrets**: set strong `POSTGRES_PASSWORD` and `SECRET_KEY` in `.env` or your orchestrator’s secret store.
-3. **DNS**: point `www.az1m0v.com` (and apex if needed) to the server IP.
-4. **TLS**: Option A — terminate HTTPS on a host reverse proxy (e.g. Caddy or another nginx) in front of OpenResty on 80. Option B — extend the OpenResty config with `listen 443 ssl` and certificates (Let’s Encrypt). Set `VSCODE_PUBLIC_SCHEME=https` and `VSCODE_PUBLIC_HOST=www.az1m0v.com`.
-5. **HTTPS on high ports**: browsers will warn on `https://host:9000` unless you serve TLS on those ports or use a path-based proxy; the common pattern here is **HTTP** on dedicated IDE ports behind a VPN or **TLS with a wildcard cert** on the same host. Document your network policy accordingly.
-6. **Docker socket**: granting the `web` container access to the socket is powerful — restrict host access, keep images updated, and consider a dedicated VM per environment.
+3. **DNS**: point your public hostname (e.g. `www.az1m0v.com`) to the server IP **before** requesting a certificate.
+4. **Let’s Encrypt (built in)**: set `DOMAIN`, `LETSENCRYPT_EMAIL`, and optionally `VSCODE_PUBLIC_SCHEME=https`, `VSCODE_PUBLIC_HOST` (same as `DOMAIN`), and `SESSION_COOKIE_SECURE=1`. Bring the stack up, then run **`./scripts/init-letsencrypt.sh`**. OpenResty loads HTTP-only until certs exist; after issuance it restarts with TLS on **443**. Certificates are valid **90 days**; **`certbot renew`** (see below) renews when they are within **~30 days** of expiry, so you stay well inside the window (typically a new cert roughly every **~60 days**, not literally every 89 days — the systemd timer runs **twice daily** so renewal is automatic once installed).
+5. **Automatic renewal on the host**: after the first deploy, run **`sudo ./scripts/install-systemd.sh`** once (systemd). That enables **`az1m0v-web-certbot.timer`**, which runs **`scripts/renew.sh`** twice per day (`certbot renew` + `openresty -s reload`). Requires a user in the **docker** group (or adjust the unit to run as root).
+6. **Updating the server**: from the repo directory, run **`./deploy/deploy.sh`** (pulls latest `git`, rebuilds images, `docker compose up -d`, runs `init-letsencrypt` idempotently). Use the same after `git pull` on the host.
+7. **HTTPS on high IDE ports**: browsers will warn on `https://host:9000` unless you serve TLS on those ports or use a path-based proxy; the common pattern here is **HTTP** on dedicated IDE ports behind a VPN or **TLS with a wildcard cert** on the same host. Document your network policy accordingly.
+8. **Docker socket**: granting the `web` container access to the socket is powerful — restrict host access, keep images updated, and consider a dedicated VM per environment.
+
+**Cloudflare / proxies**: HTTP-01 validation must reach this host on port **80** without stripping the challenge; use **DNS-only** (grey cloud) or ensure **Full** TLS and valid origin behaviour if you proxy HTTPS.
+
+The **`certbot`** service uses Compose **profile** `certbot` so it is not started on `docker compose up`; scripts invoke `docker compose --profile certbot run --rm certbot …`.
 
 ## Repository layout
 
 ```
 az1m0v-web/
-├── app/                 # Flask app (routes, models, auth helpers, templates, static)
-├── openresty/nginx.conf # Reverse proxy for port 80 → web:5000
+├── app/                      # Flask app (routes, models, auth helpers, templates, static)
+├── openresty/                # OpenResty image: TLS + reverse proxy (HTTP/HTTPS templates)
+├── deploy/
+│   ├── deploy.sh             # Remote update: git pull, compose up, init-letsencrypt
+│   └── systemd/              # Optional timer for certbot renew + nginx reload
+├── scripts/
+│   ├── init-letsencrypt.sh   # First certificate (webroot HTTP-01)
+│   ├── renew.sh              # certbot renew + openresty reload
+│   └── install-systemd.sh    # Install renewal timer (run once on the server)
 ├── docker-compose.yml
 ├── Dockerfile
 ├── wsgi.py
