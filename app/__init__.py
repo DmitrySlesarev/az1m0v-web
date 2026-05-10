@@ -1,3 +1,4 @@
+import logging
 import os
 from datetime import timedelta
 
@@ -6,12 +7,34 @@ from flask import Flask
 from app.extensions import db
 from app.routes import bp
 
+log = logging.getLogger(__name__)
+
+_TRUE_VALUES = frozenset({"1", "true", "yes", "on"})
+_FALSE_VALUES = frozenset({"0", "false", "no", "off"})
+
 
 def _env_int(name: str, default: int) -> int:
     raw = os.environ.get(name)
     if raw is None or str(raw).strip() == "":
         return default
-    return int(raw)
+    try:
+        return int(str(raw).strip())
+    except (TypeError, ValueError):
+        log.warning("Invalid integer for %s=%r; using %s", name, raw, default)
+        return default
+
+
+def _env_bool(name: str, default: bool) -> bool:
+    raw = os.environ.get(name)
+    if raw is None or str(raw).strip() == "":
+        return default
+    normalized = str(raw).strip().lower()
+    if normalized in _TRUE_VALUES:
+        return True
+    if normalized in _FALSE_VALUES:
+        return False
+    log.warning("Invalid boolean for %s=%r; using %s", name, raw, default)
+    return default
 
 
 def create_app(test_config: dict | None = None) -> Flask:
@@ -32,7 +55,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             "EV_REPO_GIT_URL",
             "https://github.com/DmitrySlesarev/az1m0v.git",
         ),
-        ENABLE_VSCODE_SPAWN=os.environ.get("ENABLE_VSCODE_SPAWN", "1") == "1",
+        ENABLE_VSCODE_SPAWN=_env_bool("ENABLE_VSCODE_SPAWN", True),
         EV_README_BRANCH=os.environ.get("EV_README_BRANCH", "master"),
         EV_REPO_PAGE_URL=os.environ.get(
             "EV_REPO_PAGE_URL",
@@ -43,10 +66,21 @@ def create_app(test_config: dict | None = None) -> Flask:
         PERMANENT_SESSION_LIFETIME=timedelta(days=14),
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE="Lax",
-        SESSION_COOKIE_SECURE=os.environ.get("SESSION_COOKIE_SECURE", "0") == "1",
+        SESSION_COOKIE_SECURE=_env_bool("SESSION_COOKIE_SECURE", False),
     )
     if test_config:
         app.config.update(test_config)
+
+    if app.config["VSCODE_PORT_MIN"] > app.config["VSCODE_PORT_MAX"]:
+        app.logger.warning(
+            "VSCODE_PORT_MIN (%s) is greater than VSCODE_PORT_MAX (%s); swapping values",
+            app.config["VSCODE_PORT_MIN"],
+            app.config["VSCODE_PORT_MAX"],
+        )
+        app.config["VSCODE_PORT_MIN"], app.config["VSCODE_PORT_MAX"] = (
+            app.config["VSCODE_PORT_MAX"],
+            app.config["VSCODE_PORT_MIN"],
+        )
 
     db.init_app(app)
     app.register_blueprint(bp)
