@@ -1,12 +1,14 @@
-import pytest
-
 from app.readme_fetch import clear_readme_cache, fetch_readme_html, readme_raw_url
 
 
 def test_readme_raw_url():
-    u = readme_raw_url("master")
-    assert "DmitrySlesarev/az1m0v" in u
+    u = readme_raw_url("master", "https://github.com/example/repo.git")
+    assert "example/repo" in u
     assert u.endswith("/README.md")
+
+    u2 = readme_raw_url("main", "git@github.com:org/another-repo.git")
+    assert "org/another-repo" in u2
+    assert u2.endswith("/README.md")
 
 
 def test_fetch_readme_html_uses_cache(monkeypatch):
@@ -25,8 +27,8 @@ def test_fetch_readme_html_uses_cache(monkeypatch):
         return R()
 
     monkeypatch.setattr("app.readme_fetch.urllib.request.urlopen", fake_urlopen)
-    h1, e1 = fetch_readme_html("master")
-    h2, e2 = fetch_readme_html("master")
+    h1, e1 = fetch_readme_html("master", "https://github.com/example/repo.git")
+    h2, e2 = fetch_readme_html("master", "https://github.com/example/repo.git")
     assert e1 is None and e2 is None
     assert h1 and h1 == h2
     assert calls["n"] == 1

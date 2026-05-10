@@ -47,25 +47,47 @@ ALLOWED_ATTRIBUTES = {
 }
 
 
-def readme_raw_url(branch: str) -> str:
+def _repo_slug_from_url(repo_url: str | None) -> str:
+    if not repo_url:
+        return "DmitrySlesarev/az1m0v"
+
+    cleaned = repo_url.strip()
+    if cleaned.startswith("git@github.com:"):
+        path = cleaned.split("git@github.com:", 1)[1]
+    elif "github.com/" in cleaned:
+        path = cleaned.split("github.com/", 1)[1]
+    else:
+        return "DmitrySlesarev/az1m0v"
+
+    slug = path.strip("/")
+    if slug.endswith(".git"):
+        slug = slug[:-4]
+    parts = slug.split("/")
+    if len(parts) < 2 or not parts[0] or not parts[1]:
+        return "DmitrySlesarev/az1m0v"
+    return f"{parts[0]}/{parts[1]}"
+
+
+def readme_raw_url(branch: str, repo_url: str | None = None) -> str:
+    slug = _repo_slug_from_url(repo_url)
     return (
-        f"https://raw.githubusercontent.com/DmitrySlesarev/az1m0v/{branch}/README.md"
+        f"https://raw.githubusercontent.com/{slug}/{branch}/README.md"
     )
 
 
-def fetch_readme_html(branch: str) -> tuple[str | None, str | None]:
+def fetch_readme_html(branch: str, repo_url: str | None = None) -> tuple[str | None, str | None]:
     """
     Returns (html, error_message).
     html is None on failure.
     """
     now = time.monotonic()
-    key = branch
+    key = f"{_repo_slug_from_url(repo_url)}:{branch}"
     if key in _CACHE:
         ts, html, err = _CACHE[key]
         if now - ts < _CACHE_TTL_SEC:
             return html, err
 
-    url = readme_raw_url(branch)
+    url = readme_raw_url(branch, repo_url=repo_url)
     try:
         req = urllib.request.Request(
             url,
