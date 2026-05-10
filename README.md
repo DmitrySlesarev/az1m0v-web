@@ -68,6 +68,7 @@ See `.env.example`. Important:
 | `VSCODE_PUBLIC_SCHEME` | Optional. If unset, uses `X-Forwarded-Proto` or the request scheme. |
 | `HOST_GATEWAY` | Hostname the `web` container uses to reach **host-published** IDE ports (default `host.docker.internal`, wired in Compose via `extra_hosts`). |
 | `VSCODE_PORT_MIN` / `VSCODE_PORT_MAX` | Inclusive range of **host** ports for code-server; must be open in the firewall. |
+| `CADVISOR_HOST_PORT` | Optional host port for cAdvisor UI/metrics (default `8088`, used only with the `monitoring` profile). |
 | `EV_REPO_GIT_URL` | Default `https://github.com/DmitrySlesarev/az1m0v.git` (public clone). |
 | `EV_README_BRANCH` | Git branch for `/project/readme` raw fetch (default `master`). |
 | `EV_REPO_PAGE_URL` | GitHub repo page URL for links (default `https://github.com/DmitrySlesarev/az1m0v`). |
@@ -93,6 +94,48 @@ gunicorn --bind 127.0.0.1:5000 wsgi:application
 ```
 
 For a quick DB-free smoke test you can point `SQLALCHEMY_DATABASE_URI` to `sqlite:////tmp/az1m0v.db` by patching `create_app` locally; production is intended for PostgreSQL only.
+
+## Optional: container statistics and health with cAdvisor
+
+The Compose file now includes an **optional** `cadvisor` service under profile `monitoring`. It is **off by default** and configured with reduced sampling (`30s`) plus disabled expensive metrics to keep overhead low.
+
+### Step-by-step
+
+1. **Start cAdvisor only when needed**
+
+   ```bash
+   docker compose --profile monitoring up -d cadvisor
+   ```
+
+2. **Confirm it is running**
+
+   ```bash
+   docker compose --profile monitoring ps cadvisor
+   ```
+
+3. **Open live container stats**
+   - Browser UI: `http://localhost:${CADVISOR_HOST_PORT:-8088}/containers/`
+   - This shows CPU, memory, filesystem, network, and per-container health timelines.
+
+4. **Check cAdvisor health endpoint**
+
+   ```bash
+   curl -fsS "http://localhost:${CADVISOR_HOST_PORT:-8088}/healthz"
+   ```
+
+   Expected response: `ok`
+
+5. **Pull Prometheus-format metrics (optional)**
+
+   ```bash
+   curl -fsS "http://localhost:${CADVISOR_HOST_PORT:-8088}/metrics"
+   ```
+
+6. **Stop it when you no longer need monitoring**
+
+   ```bash
+   docker compose --profile monitoring stop cadvisor
+   ```
 
 ## Tests
 
