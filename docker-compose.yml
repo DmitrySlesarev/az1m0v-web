@@ -64,6 +64,27 @@ services:
       - certbot-www:/var/www/certbot
     entrypoint: certbot
 
+  # Optional container-level telemetry (CPU, memory, network, filesystem) and health endpoint.
+  # Start only when needed: docker compose --profile monitoring up -d cadvisor
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.56.2
+    profiles:
+      - monitoring
+    ports:
+      - "${CADVISOR_HOST_PORT:-8088}:8080"
+    command:
+      - --housekeeping_interval=30s
+      - --max_housekeeping_interval=1m
+      - --event_storage_event_limit=default=0
+      - --event_storage_age_limit=default=0
+      - --disable_metrics=advtcp,cpu_topology,cpuset,hugetlb,memory_numa,percpu,process,referenced_memory,resctrl,sched,tcp,udp
+      - --docker_only=true
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+
 volumes:
   pgdata:
   letsencrypt:
