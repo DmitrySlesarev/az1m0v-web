@@ -130,11 +130,12 @@ def project_readme():
     from flask import current_app
 
     branch = current_app.config.get("EV_README_BRANCH", "master")
+    git_url = current_app.config.get("EV_REPO_GIT_URL")
     github_url = current_app.config.get(
         "EV_REPO_PAGE_URL",
         "https://github.com/DmitrySlesarev/az1m0v",
     )
-    html, fetch_err = fetch_readme_html(branch)
+    html, fetch_err = fetch_readme_html(branch, repo_url=git_url or github_url)
     return render_template(
         "readme.html",
         readme_html=html,
